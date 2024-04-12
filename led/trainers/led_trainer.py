@@ -269,6 +269,7 @@ class Trainer():
                     pipeline = LEDPipeline(
                         unet=unwrap_model,
                         scheduler=self.noise_scheduler,
+                        image_size=self.config.data.image_size,
                     )
                     generator = torch.Generator(device=pipeline.device).manual_seed(0)
                     # run pipeline in inference (sample random noise and denoise)
