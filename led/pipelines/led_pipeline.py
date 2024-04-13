@@ -33,6 +33,7 @@ class LEDPipeline(DiffusionPipeline):
     def __init__(self, unet=None, scheduler=None, base_pipeline='ddim', backend=None, num_cond_steps=800, image_size=512):
         super().__init__()
         # make sure scheduler can always be converted to DDIM (basically)
+        self.unet = unet
         if scheduler is None:
             scheduler = self._set_default_scheduler()
         if unet is None:
