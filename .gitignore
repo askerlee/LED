@@ -1,6 +1,5 @@
 __pycache__
-pretrained_weights/isecret.pt
-pretrained_weights/led.bin
-pretrained_weights/pcenet.pth
-pretrained_weights/scrnet.pth
-pretrained_weights/arcnet.pth
+pretrained_weights/*.pt
+pretrained_weights/*.bin
+pretrained_weights/*.pth
+*.pyc

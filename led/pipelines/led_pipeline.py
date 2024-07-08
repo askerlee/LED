@@ -2,9 +2,11 @@ from typing import  List, Optional, Union
 import numpy as np
 import torch
 import PIL
-from diffusers.utils import logging, randn_tensor
+from diffusers.utils import logging
+from diffusers.utils.torch_utils import randn_tensor
 from diffusers import DDPMScheduler
-from diffusers.pipeline_utils import DiffusionPipeline, ImagePipelineOutput
+from diffusers import DiffusionPipeline, ImagePipelineOutput
+from diffusers.configuration_utils import ConfigMixin, register_to_config
 from typing import List, Optional, Tuple, Union
 from PIL import Image
 from led.models.unet import UNet2DGenerator, _default_config
@@ -21,15 +23,11 @@ import torch.nn.functional as F
 logger = logging.getLogger(__name__)
 
 
-
-
-
-
-
-class LEDPipeline(DiffusionPipeline):
+class LEDPipeline(DiffusionPipeline, ConfigMixin):
     r"""
     Pipeline for Learning Enhancement from learning Degradation (LED).
     """
+    @register_to_config
     def __init__(self, unet=None, scheduler=None, base_pipeline='ddim', backend=None, num_cond_steps=800, image_size=512):
         super().__init__()
         # make sure scheduler can always be converted to DDIM (basically)
@@ -48,7 +46,6 @@ class LEDPipeline(DiffusionPipeline):
         self.num_cond_steps = num_cond_steps
         self.image_size = image_size
 
-
     def _set_default_scheduler(self):
         logger.info('Using default scheduler.')
         return DDPMScheduler(
@@ -64,6 +61,21 @@ class LEDPipeline(DiffusionPipeline):
             state_dict = torch.load('pretrained_weights/led.bin', map_location='cpu')
         except:
             state_dict = tm.load_url('https://github.com/QtacierP/LED/releases/download/weights/led.bin', model_dir='pretrained_weights', map_location='cpu')
+
+        convert_state_dict_keys = list(state_dict.keys())
+        for key in convert_state_dict_keys:
+            new_key = None
+            if "key" in key:
+                new_key = key.replace("key","to_k")
+            elif "query" in key:
+                new_key = key.replace("query","to_q")
+            elif "value" in key:
+                new_key = key.replace("value","to_v")
+            elif "proj_attn" in key:
+                new_key = key.replace("proj_attn","to_out.0")
+            if new_key:
+                state_dict[new_key] = state_dict.pop(key)
+
         unet.load_state_dict(state_dict)
         logger.info('Loading pretrained weights for unet.')
         return unet

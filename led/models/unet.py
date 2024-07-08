@@ -4,8 +4,8 @@ import torch.nn as nn
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.embeddings import GaussianFourierProjection, TimestepEmbedding, Timesteps
 from diffusers.models.modeling_utils import ModelMixin
-from diffusers.models.unet_2d_blocks import get_down_block, UNetMidBlock2D, get_up_block
-from diffusers.models.unet_2d import UNet2DOutput
+from diffusers.models.unets.unet_2d_blocks import get_down_block, UNetMidBlock2D, get_up_block
+from diffusers.models.unets.unet_2d import UNet2DOutput
 from omegaconf import OmegaConf
 _default_config = OmegaConf.load("led/models/default_config.yaml")
 
@@ -107,7 +107,7 @@ class UNet2DGenerator(ModelMixin, ConfigMixin):
                 resnet_eps=norm_eps,
                 resnet_act_fn=act_fn,
                 resnet_groups=norm_num_groups,
-                attn_num_head_channels=attention_head_dim,
+                attention_head_dim=attention_head_dim,
                 downsample_padding=downsample_padding,
                 resnet_time_scale_shift=resnet_time_scale_shift,
             )
@@ -121,7 +121,7 @@ class UNet2DGenerator(ModelMixin, ConfigMixin):
             resnet_act_fn=act_fn,
             output_scale_factor=mid_block_scale_factor,
             resnet_time_scale_shift=resnet_time_scale_shift,
-            attn_num_head_channels=attention_head_dim,
+            attention_head_dim=attention_head_dim,
             resnet_groups=norm_num_groups,
             add_attention=add_attention,
         )
@@ -147,7 +147,7 @@ class UNet2DGenerator(ModelMixin, ConfigMixin):
                 resnet_eps=norm_eps,
                 resnet_act_fn=act_fn,
                 resnet_groups=norm_num_groups,
-                attn_num_head_channels=attention_head_dim,
+                attention_head_dim=attention_head_dim,
                 resnet_time_scale_shift=resnet_time_scale_shift,
             )
             self.up_blocks.append(up_block)
