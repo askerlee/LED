@@ -4,8 +4,9 @@ import torch
 import PIL
 from diffusers.utils import logging
 from diffusers.utils.torch_utils import randn_tensor
-from diffusers import DDPMScheduler
+from diffusers import DDPMScheduler, SchedulerMixin
 from diffusers import DiffusionPipeline, ImagePipelineOutput
+from diffusers.models import UNet2DConditionModel
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from typing import List, Optional, Tuple, Union
 from PIL import Image
@@ -24,11 +25,18 @@ logger = logging.getLogger(__name__)
 
 
 class LEDPipeline(DiffusionPipeline, ConfigMixin):
+    # Setting _optional_components, so that to('cuda') will put these components on cuda.
+    # I don't understand why but it works.
+    _optional_components = ['unet', 'scheduler', 'backend']
+
     r"""
     Pipeline for Learning Enhancement from learning Degradation (LED).
     """
     @register_to_config
-    def __init__(self, unet=None, scheduler=None, base_pipeline='ddim', backend=None, num_cond_steps=800, image_size=512):
+    def __init__(self, unet: UNet2DConditionModel = None, 
+                 scheduler: SchedulerMixin = None, 
+                 base_pipeline='ddim', backend=None, 
+                 num_cond_steps=800, image_size=512):
         super().__init__()
         # make sure scheduler can always be converted to DDIM (basically)
         self.unet = unet
@@ -63,6 +71,7 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
             state_dict = tm.load_url('https://github.com/QtacierP/LED/releases/download/weights/led.bin', model_dir='pretrained_weights', map_location='cpu')
 
         convert_state_dict_keys = list(state_dict.keys())
+        # Make the old checkpoint compatible with the newest version of diffusers.
         for key in convert_state_dict_keys:
             new_key = None
             if "key" in key:
@@ -100,12 +109,14 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
             raise NotImplementedError(f'Backend {backend} not implemented.')
         if self.backend is not None:
             self.backend.to(self.unet.device)
-        
-    def cuda(self):
-        self.unet.cuda()
+
+    '''
+    def to(self, device=None, dtype=None):
+        self.unet.to(device=device, dtype=dtype)
         if self.backend is not None:
-            self.backend.cuda()
-    
+            self.backend.to(device=device, dtype=dtype)
+    '''   
+
     def cpu(self):
         self.unet.cpu()
         if self.backend is not None:
