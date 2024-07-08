@@ -1,5 +1,5 @@
-__pycache__
+**/__pycache__/
+**/*.pyc
 pretrained_weights/*.pt
 pretrained_weights/*.bin
 pretrained_weights/*.pth
-*.pyc
