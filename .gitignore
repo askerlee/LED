@@ -3,4 +3,6 @@
 pretrained_weights/*.pt
 pretrained_weights/*.bin
 pretrained_weights/*.pth
+images/*
+temp/*
 *.jpeg

@@ -6,7 +6,6 @@ from diffusers.utils import logging
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers import DDPMScheduler, SchedulerMixin
 from diffusers import DiffusionPipeline, ImagePipelineOutput
-from diffusers.models import UNet2DConditionModel
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from typing import List, Optional, Tuple, Union
 from PIL import Image
@@ -33,7 +32,7 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
     Pipeline for Learning Enhancement from learning Degradation (LED).
     """
     @register_to_config
-    def __init__(self, unet: UNet2DConditionModel = None, 
+    def __init__(self, unet: UNet2DGenerator = None, 
                  scheduler: SchedulerMixin = None, 
                  base_pipeline='ddim', backend=None, 
                  num_cond_steps=800, image_size=512):
@@ -115,12 +114,12 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
         self.unet.to(device=device, dtype=dtype)
         if self.backend is not None:
             self.backend.to(device=device, dtype=dtype)
-    '''   
-
+ 
     def cpu(self):
         self.unet.cpu()
         if self.backend is not None:
             self.backend.cpu()
+   '''   
 
     def numpy_to_pil(self, images):
         """
@@ -244,7 +243,9 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
             True, otherwise a `tuple. When returning a tuple, the first element is a list with the generated images.
         """
         # preprocess for input
+        # cond_image: [1, 3, 512, 512]. _pre_process() only does resizing and pixel value normalization.
         cond_image = self._pre_process(cond_image).to(self.unet.device)
+        # backend should be a VAE, but in this model it's None.
         if self.backend is not None:
             cond_image = self.backend(cond_image)
         image = randn_tensor(cond_image.shape, generator=generator, device=self.unet.device, dtype=cond_image.dtype)
@@ -257,6 +258,8 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
         for t in self.progress_bar(self.scheduler.timesteps):
             if t > max_T:
                 continue
+            # inputs: [1, 6, 512, 512]
+            # The original input image, cond_image is always included as part of the input.
             inputs = torch.cat([image, cond_image], dim=1)
             model_output = self.unet(inputs, t).sample
             # 2. predict previous mean of image x_t-1 and add variance depending on eta
@@ -265,6 +268,7 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
             image = self.scheduler.step(
                 model_output, t, image, eta=eta, use_clipped_model_output=use_clipped_model_output, generator=generator
             ).prev_sample
+
         image = image.cpu().permute(0, 2, 3, 1).numpy()
         if output_type == "pil":
             return self.numpy_to_pil(image)
