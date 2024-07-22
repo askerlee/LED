@@ -6,3 +6,4 @@ pretrained_weights/*.pth
 images/*
 temp/*
 *.jpeg
+synfundus-sel
