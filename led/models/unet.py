@@ -7,7 +7,10 @@ from diffusers.models.modeling_utils import ModelMixin
 from diffusers.models.unets.unet_2d_blocks import get_down_block, UNetMidBlock2D, get_up_block
 from diffusers.models.unets.unet_2d import UNet2DOutput
 from omegaconf import OmegaConf
-_default_config = OmegaConf.load("led/models/default_config.yaml")
+# Get the path of the current directory
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+_default_config = OmegaConf.load(os.path.join(current_dir, "default_config.yaml"))
 
 class UNet2DGenerator(ModelMixin, ConfigMixin):
     r"""

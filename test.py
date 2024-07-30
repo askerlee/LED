@@ -6,6 +6,14 @@ import numpy as np
 import os
 import torch
 
+all_latents = []
+all_timesteps = []
+def collect_latents(t, latents):
+    global all_latents, all_timesteps
+    all_latents.append(latents)
+    all_timesteps.append(t.reshape(1))
+    return {}
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=str, nargs="+", required=True)
@@ -15,9 +23,11 @@ def parse_args():
                         
 args = parse_args()
 
-led = LEDPipeline.from_pretrained('pretrained_weights')
-# led.to("cuda") doesn't work.
-#led.cuda()
+# Passing an extra cached_folder allows loading the pretrained weights when the script is not in the same directory
+# as the pretrained weights. LEDPipeline has its own weight loading mechanism, and the first 'pretrained_weights'
+# argument won't be passed to LEDPipeline.__init__() as an argument by DiffusionPipeline.from_pretrained().
+# Therefore, we have to repeat the 'pretrained_weights' argument in an extra cached_folder argument.
+led = LEDPipeline.from_pretrained('pretrained_weights', cached_folder='pretrained_weights')
 led = led.to("cuda")
 
 all_input_files = []
@@ -62,7 +72,12 @@ for i_file, input_file in enumerate(all_input_files):
     print(f"{width}x{height} -> {new_width}x{new_height} -> {new_input.size}")
 
     with torch.no_grad():
-        led_enhancement = led(new_input)[0]
+        # num_cond_steps: 800.
+        # new_input: cond_image, one or list of low-quality images of interest.
+        led_enhancement = led(cond_image=new_input, callback_on_step_end=collect_latents)[0]
+
+    # all_latents: 41 tensors of [1, 3, 512, 512].
+    # all_timesteps: 41 tensors of [800, 780, 760, ..., 20, 0]
 
     # [512, 512, 3] -> [600, 900, 3]
     led_enhancement_pil = Image.fromarray(led_enhancement)

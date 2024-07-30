@@ -1,4 +1,4 @@
-from typing import  List, Optional, Union
+from typing import  List, Optional, Union, Callable, Dict
 import numpy as np
 import torch
 import PIL
@@ -19,6 +19,7 @@ import logging
 import torch.utils.model_zoo as tm
 import cv2
 import torch.nn.functional as F
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +36,14 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
     def __init__(self, unet: UNet2DGenerator = None, 
                  scheduler: SchedulerMixin = None, 
                  base_pipeline='ddim', backend=None, 
-                 num_cond_steps=800, image_size=512):
+                 num_cond_steps=800, image_size=512, cached_folder=None):
         super().__init__()
         # make sure scheduler can always be converted to DDIM (basically)
         self.unet = unet
         if scheduler is None:
             scheduler = self._set_default_scheduler()
         if unet is None:
-            self.unet = self._build_unet()
+            self.unet = self._build_unet(cached_folder)
         if base_pipeline == 'ddim':
             from diffusers.schedulers import DDIMScheduler
             self.scheduler = DDIMScheduler.from_config(scheduler.config)
@@ -61,13 +62,13 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
                 prediction_type='epsilon',
             )
     
-    def _build_unet(self):
+    def _build_unet(self, cached_folder='pretrained_weights'):
         unet = UNet2DGenerator.from_config(OmegaConf.to_object(_default_config)).eval()
         # load from pretrained path or url
         try:
-            state_dict = torch.load('pretrained_weights/led.bin', map_location='cpu')
+            state_dict = torch.load(os.path.join(cached_folder,'led.bin'), map_location='cpu')
         except:
-            state_dict = tm.load_url('https://github.com/QtacierP/LED/releases/download/weights/led.bin', model_dir='pretrained_weights', map_location='cpu')
+            state_dict = tm.load_url('https://github.com/QtacierP/LED/releases/download/weights/led.bin', model_dir=cached_folder, map_location='cpu')
 
         convert_state_dict_keys = list(state_dict.keys())
         # Make the old checkpoint compatible with the newest version of diffusers.
@@ -212,9 +213,13 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
         generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
         eta: float = 0.0,
         num_inference_steps: int = 50,
+        timesteps: List[int] = None,
         use_clipped_model_output: Optional[bool] = None,
         output_type: Optional[str] = "numpy",
         output_max_val: int=255,
+        callback_on_step_end: Optional[
+            Callable[[int, torch.Tensor], None]
+        ] = None,
     ) -> Union[ImagePipelineOutput, Tuple]:
         r"""
         Args:
@@ -249,11 +254,16 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
         if self.backend is not None:
             cond_image = self.backend(cond_image)
         image = randn_tensor(cond_image.shape, generator=generator, device=self.unet.device, dtype=cond_image.dtype)
-        # set step values
-        self.scheduler.set_timesteps(num_inference_steps)
+        if timesteps is None:
+            # set step values
+            self.scheduler.set_timesteps(num_inference_steps)
+        else:
+            self.scheduler.timesteps = timesteps
+
         max_T = self.num_cond_steps
         timesteps = torch.ones(cond_image.shape[0], device=self.unet.device, dtype=torch.long) * max_T
         # Add noise to the clean images according to the noise magnitude at each timestep
+        # The input `image` is the noise tensor to be added to the clear image `cond_image`.
         image = self.scheduler.add_noise(cond_image, image, timesteps)
         for t in self.progress_bar(self.scheduler.timesteps):
             if t > max_T:
@@ -268,6 +278,8 @@ class LEDPipeline(DiffusionPipeline, ConfigMixin):
             image = self.scheduler.step(
                 model_output, t, image, eta=eta, use_clipped_model_output=use_clipped_model_output, generator=generator
             ).prev_sample
+            if callback_on_step_end is not None:
+                callback_on_step_end(t, image)
 
         image = image.cpu().permute(0, 2, 3, 1).numpy()
         if output_type == "pil":
